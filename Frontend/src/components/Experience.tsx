@@ -11,7 +11,12 @@ export const Experience = ({ audioUrl, expression, animation }: ExperienceProps)
     return (
         <>
             {/* 1. Controls */}
-            <OrbitControls enablePan={false} minPolarAngle={0.5} maxPolarAngle={1.5} />
+            <OrbitControls 
+                enablePan={false} 
+                minPolarAngle={0.5} 
+                maxPolarAngle={1.5} 
+                target={[0, 0.5, 0]} 
+            />
 
             {/* 2. Environment */}
             <Environment
@@ -35,7 +40,7 @@ export const Experience = ({ audioUrl, expression, animation }: ExperienceProps)
             <ContactShadows opacity={0.4} scale={10} blur={2.5} far={4} resolution={256} color="#000000" />
 
             {/* 5. The Avatar */}
-            <group position={[0, -1, 0]}>
+            <group position={[0, -1.3, 0]} scale={1.3}>
                 <Ziva
                     audioUrl={audioUrl}
                     expression={expression}

@@ -3,8 +3,12 @@ import { Suspense, useState, useRef } from "react";
 import { Experience } from "./components/Experience";
 
 function App() {
+  const VOICE_ID = (import.meta as any).env?.VITE_TTS_VOICE_ID as string | undefined;
+  const TTS_MODEL = ((import.meta as any).env?.VITE_TTS_MODEL as string | undefined) || 'eleven_flash_v2_5';
   const [input, setInput] = useState("");
   const [chatHistory, setChatHistory] = useState<string[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isHover, setIsHover] = useState(false);
   
   // Ziva State
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -25,7 +29,11 @@ function App() {
       const res = await fetch("http://localhost:3000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ 
+          message: text,
+          voiceId: VOICE_ID,
+          ttsModel: TTS_MODEL
+        }),
       });
       const data = await res.json();
       updateAvatarState(data);
@@ -66,6 +74,8 @@ function App() {
     setLoading(true);
     const formData = new FormData();
     formData.append("audio", audioBlob);
+    if (VOICE_ID) formData.append('voiceId', VOICE_ID);
+    if (TTS_MODEL) formData.append('ttsModel', TTS_MODEL);
 
     try {
       const res = await fetch("http://localhost:3000/talk", {
@@ -90,13 +100,21 @@ function App() {
     if(data.animation) setAnimation(data.animation);
   };
 
+  const activeGlass = isTyping || isHover;
+
   return (
     <>
-      {/* UI Overlay */}
-      <div className="absolute top-0 left-0 z-10 w-full p-4 flex flex-col items-center pointer-events-none">
-        <div className="bg-white/90 p-4 rounded-xl shadow-xl pointer-events-auto w-full max-w-md backdrop-blur-sm">
+      {/* Chat Overlay */}
+      <div 
+        className="fixed bottom-4 left-4 z-10 pointer-events-none"
+        onMouseEnter={() => setIsHover(true)}
+        onMouseLeave={() => setIsHover(false)}
+      >
+        <div
+          className={`pointer-events-auto w-[360px] p-4 rounded-xl border shadow-lg transition-colors duration-300 backdrop-blur-xl ${activeGlass ? 'bg-white/50 border-white/40' : 'bg-white/15 border-white/30'} hover:shadow-xl`}
+        >
           {/* Chat History */}
-          <div className="h-48 overflow-y-auto mb-4 text-sm space-y-2 border-b pb-2 scrollbar-thin">
+          <div className="h-48 overflow-y-auto mb-4 text-sm space-y-2 border-b border-white/20 pb-2 scrollbar-thin">
              {chatHistory.map((msg, i) => (
                <div key={i} className={`p-2 rounded ${msg.startsWith("You") ? "bg-blue-50 text-right" : "bg-gray-50"}`}>
                  {msg}
@@ -110,10 +128,16 @@ function App() {
             <input 
               className="border p-2 rounded flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setInput(v);
+                setIsTyping(v.length > 0);
+              }}
               placeholder="Type or speak..."
               disabled={loading || recording}
               onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+              onFocus={() => setIsTyping(true)}
+              onBlur={() => setIsTyping(input.length > 0)}
             />
             
             <button 
@@ -133,14 +157,18 @@ function App() {
               Send
             </button>
           </div>
-          <div className="text-xs text-gray-500 mt-2 text-center">
+          <div className="text-xs text-gray-300 mt-2 text-center">
             Hold 🎤 to speak, release to send.
           </div>
         </div>
       </div>
 
       {/* 3D Scene */}
-      <Canvas shadows camera={{ position: [0, 0, 5], fov: 30 }} className="h-screen w-full block bg-black">
+      <Canvas 
+          shadows 
+          camera={{ position: [0, 0.5, 2.5], fov: 30 }} 
+          className="h-screen w-full block bg-black"
+      >
         <Suspense fallback={null}>
           <Experience 
             audioUrl={audioUrl} 

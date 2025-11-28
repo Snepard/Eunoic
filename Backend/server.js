@@ -45,8 +45,9 @@ let activeModelId = MODEL_CANDIDATES[0];
 let model = getModel(activeModelId);
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-// Replace with your preferred voice ID if needed
-const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+// Voice configuration (override via env or per-request)
+const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "ecp3DWciuUyW7BYM7II1";
+const DEFAULT_TTS_MODEL = process.env.ELEVENLABS_TTS_MODEL || "eleven_flash_v2_5"; // latency-optimized
 
 // VALID ACTIONS (Must match your Ziva.tsx)
 const VALID_EXPRESSIONS = ['default', 'smile', 'funnyFace', 'sad', 'surprised', 'angry', 'crazy'];
@@ -99,14 +100,14 @@ async function processWithGemini(userMessage) {
 }
 
 // Helper: Text to Speech (ElevenLabs)
-async function textToSpeech(text) {
+async function textToSpeech(text, { voiceId = DEFAULT_VOICE_ID, ttsModel = DEFAULT_TTS_MODEL } = {}) {
     try {
         const response = await axios({
             method: 'POST',
-            url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+            url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
             data: { 
-                text, 
-                model_id: "eleven_flash_v2_5" // Use Flash for lower latency
+                text,
+                model_id: ttsModel
             },
             headers: {
                 'xi-api-key': ELEVENLABS_API_KEY,
@@ -125,15 +126,16 @@ async function textToSpeech(text) {
 // 1. TEXT CHAT ROUTE
 app.post('/chat', async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, voiceId, ttsModel } = req.body;
         console.log("Received chat:", message);
         
         const aiResponse = await processWithGemini(message);
         console.log("Gemini response:", aiResponse);
-        
-        const audioUrl = await textToSpeech(aiResponse.text);
+        const usedVoiceId = voiceId || DEFAULT_VOICE_ID;
+        const usedTtsModel = ttsModel || DEFAULT_TTS_MODEL;
+        const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
 
-        res.json({ ...aiResponse, audio: audioUrl });
+        res.json({ ...aiResponse, audio: audioUrl, voiceId: usedVoiceId, ttsModel: usedTtsModel });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Processing failed", details: error.message });
@@ -166,17 +168,34 @@ app.post('/talk', upload.single('audio'), async (req, res) => {
         const aiResponse = await processWithGemini(userText);
 
         // C. Convert response to Audio
-        const audioUrl = await textToSpeech(aiResponse.text);
+        const usedVoiceId = (req.body && req.body.voiceId) || DEFAULT_VOICE_ID;
+        const usedTtsModel = (req.body && req.body.ttsModel) || DEFAULT_TTS_MODEL;
+        const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
 
         res.json({ 
             userText, 
-            ...aiResponse, 
-            audio: audioUrl 
+            ...aiResponse,
+            audio: audioUrl,
+            voiceId: usedVoiceId,
+            ttsModel: usedTtsModel
         });
 
     } catch (error) {
         console.error("Voice processing error:", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Voice processing failed", details: error.message });
+    }
+});
+
+// 3. List ElevenLabs voices to help choose a correct voice
+app.get('/voices', async (req, res) => {
+    try {
+        const r = await axios.get('https://api.elevenlabs.io/v1/voices', {
+            headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+        });
+        res.json(r.data);
+    } catch (error) {
+        console.error('Failed to fetch voices:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch voices', details: error.message });
     }
 });
 
