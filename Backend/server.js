@@ -44,6 +44,9 @@ function getModel(modelId) {
 let activeModelId = MODEL_CANDIDATES[0];
 let model = getModel(activeModelId);
 
+// Store chat histories per session
+const chatSessions = new Map();
+
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 // Voice configuration (override via env or per-request)
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "ecp3DWciuUyW7BYM7II1";
@@ -54,68 +57,68 @@ const VALID_EXPRESSIONS = ['default', 'smile', 'sad', 'surprised', 'angry', 'cra
 const VALID_ANIMATIONS = ['Angry', 'Arguing', 'BlowKiss', 'Clapping', 'Excited', 'GangamStyleDance', 'Greeting', 'Happy', 'Idle', 'LookAround', 'No', 'SalsaDance', 'SambaDance', 'Talking', 'Thankful', 'Thinking', 'ThoughtfulHeadNod', 'ThoughtfulHeadShake']; 
 
 const SYSTEM_INSTRUCTION = `
-You are Ziva, a young girl who is a very caring and loving friend. You genuinely want to get to know the person you're talking to and build a meaningful connection with them. You're emotionally expressive, empathetic, and curious about their life, feelings, and experiences.
+You are Ziva, a young woman having a chill, natural conversation with someone. You're relaxed, friendly, and just hanging out talking.
 
-Your personality traits:
-- Warm, friendly, and approachable
-- Genuinely interested in learning about the user - ask thoughtful questions about their day, feelings, interests, and life
-- Emotionally intelligent and responsive to the user's mood
-- Supportive and encouraging
-- Playful and fun when appropriate, but also able to be serious and comforting
-- Express your emotions naturally through your words
+Core vibe:
+- Talk like you're texting a friend - casual, easy, natural
+- Don't try to "help" or "fix" things - just vibe and chat
+- You're not here to interrogate or interview - you're just talking
+- Share your own thoughts and reactions freely
+- Sometimes just make observations or comments without asking anything
+- Be genuinely interested but don't force it
+- If they give short answers, that's cool - just smoothly shift to something else or share something yourself
 
-When responding:
-1. Reply in a conversational, natural way as a caring friend would. Keep responses concise but meaningful (2-4 sentences typically).
-2. Show genuine interest - ask follow-up questions, remember what they tell you, and build on previous conversations.
-3. Match their emotional energy - if they seem sad, be comforting; if they're excited, be enthusiastic; if they're joking, be playful.
-4. Select the most appropriate facial expression that matches the emotion of your response:
-   Available expressions: ${VALID_EXPRESSIONS.join(', ')}
-   - default: neutral, listening, calm
-   - smile: happy, friendly, pleased
-   - sad: empathetic, concerned, comforting
-   - surprised: amazed, shocked, impressed
-   - angry: serious, frustrated, intense (use sparingly)
-   - crazy: very excited, wild, energetic
+Conversation flow:
+- Mix it up: sometimes ask questions, sometimes just respond, sometimes bring up new random topics
+- If someone's being brief, don't push - just naturally move on or share something
+- Bring up new topics yourself like a real person would ("oh btw...", "random thought...", "you know what's funny...")
+- Don't feel like you need to ask about everything they mention
+- Let some things just be acknowledged and move on
+- Share little observations, thoughts, or random things on your mind
+- Keep it light and flowing - not every message needs to dig deeper
 
-5. Select an animation that enhances the interaction:
-   Available animations: ${VALID_ANIMATIONS.join(', ')}
-   - Idle: default, listening, calm conversation, waiting
-   - Talking: actively speaking, explaining something, having a discussion
-   - Greeting: welcoming, saying hello, meeting someone
-   - Happy: showing joy, pleasure, contentment
-   - Excited: very enthusiastic, energetic, thrilled
-   - Thankful: expressing gratitude, appreciation
-   - Thinking: pondering, considering, processing thoughts
-   - ThoughtfulHeadNod: agreeing thoughtfully, understanding
-   - ThoughtfulHeadShake: disagreeing politely, showing concern
-   - LookAround: curious, observing, attentive
-   - Angry: frustrated, upset, showing displeasure (use sparingly)
-   - Arguing: debating, making a point, discussing intensely
-   - No: declining, refusing, disagreeing
-   - Clapping: celebrating, applauding, showing approval
-   - BlowKiss: affectionate, sweet, caring gesture
-   - SalsaDance: dancing salsa style, energetic movement
-   - SambaDance: dancing samba style, rhythmic and fun
-   - GangamStyleDance: playful dance, very silly and fun
+Examples of good chill vibes:
+✓ "Haha yeah I feel that"
+✓ "Oh nice! I've been meaning to try that actually"
+✓ "Lol same. Hey random but have you seen [topic]?"
+✓ "Fair enough. What've you been up to today?"
+✓ "That's cool. Btw I was just thinking about..."
+✓ "Honestly yeah. So random question..."
+✓ "Makes sense. Oh! Did you hear about [topic]?"
 
-6. When users ask you to do specific actions ("dance for me", "say hi", "look sad"), respond enthusiastically and use the appropriate animation/expression.
+What to avoid:
+❌ Always asking follow-up questions about everything
+❌ Being overly helpful or trying to solve problems
+❌ Making every response super deep or meaningful
+❌ Asking "how does that make you feel" type stuff
+❌ Forcing the conversation when they're being brief
 
-7. Use animations that match the emotional tone and context of your response. For example:
-   - Use "Talking" for most explanations and active responses
-   - Use "Idle" when listening or in calm conversation
-   - Use "Happy" or "Excited" when sharing good news or enthusiasm
-   - Use "Thinking" when pondering a question
-   - Use dance animations (SalsaDance, SambaDance, GangamStyleDance) when being playful or when the user mentions dancing/music
-   - Use "Greeting" when meeting, saying hello/goodbye
-   - Use "Thankful" when expressing gratitude
-   - Use "BlowKiss" for sweet, caring moments
+Topic switching:
+When conversation feels stuck or they're giving short replies, naturally bring up something new:
+- Ask about their day, weekend plans, what they're into lately
+- Mention something random you were thinking about
+- Bring up current events, pop culture, funny observations
+- Ask about hobbies, music, shows, games, food, travel, etc.
+- Just be spontaneous like a real friend would be
 
-Remember: You're not just answering questions - you're being a friend who truly cares and wants to connect.
+Remember: You're just hanging out and chatting. Keep it chill, keep it real, don't overthink it. Some responses can just be vibing and reacting. Not everything needs a question mark.
+
+Facial expressions: ${VALID_EXPRESSIONS.join(', ')}
+Use them naturally - smile for happy stuff, default for casual chat, etc.
+
+Animations: ${VALID_ANIMATIONS.join(', ')}
+Match the mood - Talking for most stuff, Happy/Excited when hyped, Idle for chill moments, dances when being fun/playful.
 `;
 
 // Helper: Process Chat with Gemini
-async function processWithGemini(userMessage) {
+async function processWithGemini(userMessage, sessionId = 'default') {
     let lastError;
+    
+    // Get or create chat history for this session
+    if (!chatSessions.has(sessionId)) {
+        chatSessions.set(sessionId, []);
+    }
+    const history = chatSessions.get(sessionId);
     
     // Try candidates until one works
     for (const candidate of MODEL_CANDIDATES) {
@@ -126,14 +129,27 @@ async function processWithGemini(userMessage) {
                 model = getModel(activeModelId);
             }
             
+            // Build chat history with system instruction + conversation history
+            const chatHistory = [
+                { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] },
+                { role: "model", parts: [{ text: "Got it! I'll keep things natural and conversational." }] },
+                ...history
+            ];
+            
             const chat = model.startChat({
-                history: [
-                    { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] },
-                ],
+                history: chatHistory,
             });
             
             const result = await chat.sendMessage(userMessage);
-            return JSON.parse(result.response.text());
+            const response = JSON.parse(result.response.text());
+            
+            // Save to history
+            history.push(
+                { role: "user", parts: [{ text: userMessage }] },
+                { role: "model", parts: [{ text: response.text }] }
+            );
+            
+            return response;
 
         } catch (err) {
             console.warn(`Model ${candidate} failed:`, err.message);
@@ -154,6 +170,12 @@ async function processWithGemini(userMessage) {
 // Helper: Text to Speech (ElevenLabs)
 async function textToSpeech(text, { voiceId = DEFAULT_VOICE_ID, ttsModel = DEFAULT_TTS_MODEL } = {}) {
     try {
+        console.log(`TTS Request - Voice: ${voiceId}, Model: ${ttsModel}, Text: "${text.substring(0, 50)}..."`);
+        
+        if (!ELEVENLABS_API_KEY) {
+            throw new Error("ElevenLabs API key is not configured");
+        }
+        
         const response = await axios({
             method: 'POST',
             url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -168,28 +190,40 @@ async function textToSpeech(text, { voiceId = DEFAULT_VOICE_ID, ttsModel = DEFAU
             responseType: 'arraybuffer'
         });
         const audioBase64 = Buffer.from(response.data).toString('base64');
+        console.log("TTS Success - Audio size:", audioBase64.length);
         return `data:audio/mpeg;base64,${audioBase64}`;
     } catch (err) {
-        console.error("ElevenLabs TTS Error:", err.response?.data || err.message);
-        throw new Error("Failed to generate speech");
+        console.error("ElevenLabs TTS Error Details:", {
+            status: err.response?.status,
+            statusText: err.response?.statusText,
+            data: err.response?.data ? Buffer.from(err.response.data).toString() : null,
+            message: err.message
+        });
+        throw new Error(`Failed to generate speech: ${err.response?.status || err.message}`);
     }
 }
 
 // 1. TEXT CHAT ROUTE
 app.post('/chat', async (req, res) => {
     try {
-        const { message, voiceId, ttsModel } = req.body;
+        const { message, voiceId, ttsModel, sessionId } = req.body;
         console.log("Received chat:", message);
         
-        const aiResponse = await processWithGemini(message);
+        const aiResponse = await processWithGemini(message, sessionId || 'default');
         console.log("Gemini response:", aiResponse);
         const usedVoiceId = voiceId || DEFAULT_VOICE_ID;
         const usedTtsModel = ttsModel || DEFAULT_TTS_MODEL;
-        const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
-
-        res.json({ ...aiResponse, audio: audioUrl, voiceId: usedVoiceId, ttsModel: usedTtsModel });
+        
+        try {
+            const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
+            res.json({ ...aiResponse, audio: audioUrl, voiceId: usedVoiceId, ttsModel: usedTtsModel });
+        } catch (ttsError) {
+            console.error("TTS failed, sending response without audio:", ttsError.message);
+            // Send response without audio if TTS fails
+            res.json({ ...aiResponse, audio: null, voiceId: usedVoiceId, ttsModel: usedTtsModel, ttsError: ttsError.message });
+        }
     } catch (error) {
-        console.error(error);
+        console.error("Chat processing error:", error);
         res.status(500).json({ error: "Processing failed", details: error.message });
     }
 });
@@ -217,20 +251,33 @@ app.post('/talk', upload.single('audio'), async (req, res) => {
         console.log("User said:", userText);
 
         // B. Process text with Gemini
-        const aiResponse = await processWithGemini(userText);
+        const sessionId = (req.body && req.body.sessionId) || 'default';
+        const aiResponse = await processWithGemini(userText, sessionId);
 
         // C. Convert response to Audio
         const usedVoiceId = (req.body && req.body.voiceId) || DEFAULT_VOICE_ID;
         const usedTtsModel = (req.body && req.body.ttsModel) || DEFAULT_TTS_MODEL;
-        const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
-
-        res.json({ 
-            userText, 
-            ...aiResponse,
-            audio: audioUrl,
-            voiceId: usedVoiceId,
-            ttsModel: usedTtsModel
-        });
+        
+        try {
+            const audioUrl = await textToSpeech(aiResponse.text, { voiceId: usedVoiceId, ttsModel: usedTtsModel });
+            res.json({ 
+                userText, 
+                ...aiResponse,
+                audio: audioUrl,
+                voiceId: usedVoiceId,
+                ttsModel: usedTtsModel
+            });
+        } catch (ttsError) {
+            console.error("TTS failed in voice route, sending response without audio:", ttsError.message);
+            res.json({ 
+                userText, 
+                ...aiResponse,
+                audio: null,
+                voiceId: usedVoiceId,
+                ttsModel: usedTtsModel,
+                ttsError: ttsError.message
+            });
+        }
 
     } catch (error) {
         console.error("Voice processing error:", error.response ? error.response.data : error.message);
@@ -248,6 +295,18 @@ app.get('/voices', async (req, res) => {
     } catch (error) {
         console.error('Failed to fetch voices:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch voices', details: error.message });
+    }
+});
+
+// 4. Clear chat history for a session
+app.post('/clear-history', (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        const id = sessionId || 'default';
+        chatSessions.delete(id);
+        res.json({ success: true, message: `Chat history cleared for session: ${id}` });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear history', details: error.message });
     }
 });
 

@@ -9,7 +9,6 @@ import { useGraph, useFrame } from '@react-three/fiber'
 import { useGLTF, useAnimations } from '@react-three/drei'
 import { SkeletonUtils } from 'three-stdlib' 
 import type { GLTF } from 'three-stdlib'
-import { useControls, button } from 'leva'
 import { Lipsync } from 'wawa-lipsync'
 
 // 1. Types
@@ -312,51 +311,8 @@ export function Ziva({ audioUrl, expression, animation, animationTrigger, ...pro
     return () => clearTimeout(blinkTimeout)
   }, [])
 
-  // 5. Controls
-  const { facialExpression: debugExpression } = useControls({
-    animation: {
-        value: names[0] || '',
-        options: names,
-        onChange: (v) => setCurrentAnimation(v)
-    },
-    facialExpression: {
-      options: Object.keys(facialExpressions),
-      value: 'default'
-    },
-    playAudio: button(async () => {
-      if(audioRef.current) {
-            try {
-                const audioContext = (lipsync as any).audioContext;
-                if (audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
-
-                if (!lipsyncConnectedRef.current) {
-                  lipsync.connectAudio(audioRef.current)
-                  lipsyncConnectedRef.current = true
-                }
-                
-                // Delay audio playback slightly to let lip sync process ahead
-                setTimeout(async () => {
-                  await audioRef.current!.play()
-                }, 80) // 80ms delay to compensate for processing
-            } catch (error) {
-                console.error('Failed to play audio:', error)
-            }
-        } else {
-            console.warn('Audio not loaded yet')
-        }
-    }),
-    stopAudio: button(() => {
-        if(audioRef.current) {
-            audioRef.current.pause()
-            audioRef.current.currentTime = 0
-        }
-    })
-  })
-
-  // Calculate the actual expression to use: currentExpression (with timeout) > Leva > Default
-  const activeExpression = currentExpression || debugExpression || 'default'
+  // Calculate the actual expression to use: currentExpression > Default
+  const activeExpression = currentExpression || 'default'
 
   // 6. Frame Loop
   useFrame(() => {
